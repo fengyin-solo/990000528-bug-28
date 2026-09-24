@@ -1,11 +1,11 @@
 <template>
-  <el-card class="task-card" shadow="hover" @click="$emit('edit', card)">
+  <el-card class="task-card" shadow="hover" :class="{ 'is-readonly': readonly }" @click="$emit('edit', card)">
     <div class="task-card-content">
       <div class="task-card-top">
         <el-tag :type="priorityType" size="small" effect="dark" class="priority-tag">
           {{ card.priority }}
         </el-tag>
-        <el-dropdown trigger="click" @command="handleCommand" @click.stop>
+        <el-dropdown v-if="!readonly" trigger="click" @command="handleCommand" @click.stop>
           <el-button text size="small" :icon="MoreFilled" @click.stop />
           <template #dropdown>
             <el-dropdown-menu>
@@ -55,7 +55,8 @@ import { MoreFilled, Calendar } from '@element-plus/icons-vue'
 
 const props = defineProps({
   card: { type: Object, required: true },
-  allColumns: { type: Array, default: () => [] }
+  allColumns: { type: Array, default: () => [] },
+  readonly: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['edit', 'delete', 'move'])
@@ -111,6 +112,10 @@ function confirmMove() {
   margin-bottom: 8px;
   cursor: pointer;
   transition: transform 0.15s;
+}
+
+.task-card.is-readonly {
+  cursor: default;
 }
 
 .task-card:hover {

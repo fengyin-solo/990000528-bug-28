@@ -7,7 +7,7 @@
     @update:model-value="$emit('update:visible', $event)"
     @open="initForm"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form ref="formRef" :model="form" :rules="rules" label-position="top" :disabled="readonly">
       <el-form-item label="Title" prop="title">
         <el-input v-model="form.title" placeholder="Card title" maxlength="100" show-word-limit />
       </el-form-item>
@@ -37,7 +37,7 @@
         </el-form-item>
       </div>
 
-      <el-form-item v-if="allColumns.length > 1" label="Move to Column">
+      <el-form-item v-if="!readonly && allColumns.length > 1" label="Move to Column">
         <el-select v-model="moveTarget" placeholder="Select column (optional)" clearable style="width: 100%;">
           <el-option
             v-for="col in allColumns"
@@ -51,21 +51,22 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="$emit('update:visible', false)">Cancel</el-button>
-      <el-button type="primary" :loading="saving" @click="handleSave">Save Changes</el-button>
+      <el-button @click="$emit('update:visible', false)">{{ readonly ? 'Close' : 'Cancel' }}</el-button>
+      <el-button v-if="!readonly" type="primary" :loading="saving" @click="handleSave">Save Changes</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useBoardStore } from '../stores/board.js'
 
 const props = defineProps({
   visible: Boolean,
   card: { type: Object, default: null },
-  allColumns: { type: Array, default: () => [] }
+  allColumns: { type: Array, default: () => [] },
+  readonly: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible', 'updated', 'move'])

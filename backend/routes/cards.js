@@ -1,15 +1,16 @@
 const express = require('express');
 const { getDb } = require('../db/init');
 const { authMiddleware } = require('../middleware/auth');
+const permissions = require('../services/permissions');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-// Helper: verify card ownership through column -> board -> user
-function getCardWithOwnership(db, cardId, userId) {
+// Helper: load a card with its board and owner
+function getCardWithOwnership(db, cardId) {
   return db.prepare(`
-    SELECT c.*, col.board_id, b.user_id 
+    SELECT c.*, col.board_id, b.user_id
     FROM cards c
     JOIN columns col ON c.column_id = col.id
     JOIN boards b ON col.board_id = b.id
@@ -17,33 +18,24 @@ function getCardWithOwnership(db, cardId, userId) {
   `).get(cardId);
 }
 
-function verifyColumnOwnership(db, columnId, userId) {
-  return db.prepare(`
-    SELECT col.*, b.user_id 
-    FROM columns col 
-    JOIN boards b ON col.board_id = b.id 
-    WHERE col.id = ?
-  `).get(columnId, userId);
-}
-
 // GET /api/columns/:columnId/cards - Get cards in column
 router.get('/columns/:columnId/cards', (req, res) => {
   const db = getDb();
   try {
     const col = db.prepare(`
-      SELECT col.*, b.user_id FROM columns col 
-      JOIN boards b ON col.board_id = b.id 
+      SELECT col.*, b.user_id FROM columns col
+      JOIN boards b ON col.board_id = b.id
       WHERE col.id = ?
     `).get(req.params.columnId);
 
-    if (!col || col.user_id !== req.user.id) {
+    if (!col || !permissions.canView(db, col.board_id, req.user.id)) {
       db.close();
       return res.status(404).json({ error: 'Column not found' });
     }
 
     const cards = db.prepare(`
-      SELECT * FROM cards 
-      WHERE column_id = ? 
+      SELECT * FROM cards
+      WHERE column_id = ?
       ORDER BY position ASC
     `).all(req.params.columnId);
 
@@ -65,14 +57,18 @@ router.post('/columns/:columnId/cards', (req, res) => {
   const db = getDb();
   try {
     const col = db.prepare(`
-      SELECT col.*, b.user_id FROM columns col 
-      JOIN boards b ON col.board_id = b.id 
+      SELECT col.*, b.user_id FROM columns col
+      JOIN boards b ON col.board_id = b.id
       WHERE col.id = ?
     `).get(req.params.columnId);
 
-    if (!col || col.user_id !== req.user.id) {
+    if (!col) {
       db.close();
       return res.status(404).json({ error: 'Column not found' });
+    }
+    if (!permissions.canEdit(db, col.board_id, req.user.id)) {
+      db.close();
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
     }
 
     // Get max position in this column
@@ -106,10 +102,14 @@ router.put('/cards/:id', (req, res) => {
   const db = getDb();
 
   try {
-    const card = getCardWithOwnership(db, req.params.id, req.user.id);
-    if (!card || card.user_id !== req.user.id) {
+    const card = getCardWithOwnership(db, req.params.id);
+    if (!card) {
       db.close();
       return res.status(404).json({ error: 'Card not found' });
+    }
+    if (!permissions.canEdit(db, card.board_id, req.user.id)) {
+      db.close();
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
     }
 
     const updates = [];
@@ -140,10 +140,14 @@ router.put('/cards/:id', (req, res) => {
 router.delete('/cards/:id', (req, res) => {
   const db = getDb();
   try {
-    const card = getCardWithOwnership(db, req.params.id, req.user.id);
-    if (!card || card.user_id !== req.user.id) {
+    const card = getCardWithOwnership(db, req.params.id);
+    if (!card) {
       db.close();
       return res.status(404).json({ error: 'Card not found' });
+    }
+    if (!permissions.canEdit(db, card.board_id, req.user.id)) {
+      db.close();
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
     }
 
     db.prepare('DELETE FROM cards WHERE id = ?').run(req.params.id);
@@ -171,20 +175,24 @@ router.put('/cards/:id/move', (req, res) => {
 
   const db = getDb();
   try {
-    const card = getCardWithOwnership(db, req.params.id, req.user.id);
-    if (!card || card.user_id !== req.user.id) {
+    const card = getCardWithOwnership(db, req.params.id);
+    if (!card) {
       db.close();
       return res.status(404).json({ error: 'Card not found' });
     }
+    if (!permissions.canEdit(db, card.board_id, req.user.id)) {
+      db.close();
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
+    }
 
-    // Verify target column belongs to same board and user
+    // Verify target column belongs to the same board the user can edit
     const targetCol = db.prepare(`
-      SELECT col.*, b.user_id FROM columns col 
-      JOIN boards b ON col.board_id = b.id 
+      SELECT col.*, b.user_id FROM columns col
+      JOIN boards b ON col.board_id = b.id
       WHERE col.id = ? AND col.board_id = ?
     `).get(columnId, card.board_id);
 
-    if (!targetCol || targetCol.user_id !== req.user.id) {
+    if (!targetCol) {
       db.close();
       return res.status(404).json({ error: 'Target column not found in this board' });
     }

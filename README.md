@@ -76,9 +76,37 @@ The seed script creates a demo user with a sample board "My Project" containing 
 - `POST /api/auth/login` - Login (returns JWT)
 
 ### Boards
-- `GET /api/boards` - List user's boards
+- `GET /api/boards` - List boards you own or have been granted (includes `access_level`: `owner` / `edit` / `readonly`)
 - `POST /api/boards` - Create board
-- `DELETE /api/boards/:id` - Delete board
+- `DELETE /api/boards/:id` - Delete board (owner only)
+
+### Cross-Account Permissions & Audit
+- `GET /api/permissions/me` - Effective permission view (shared boards, active grants, recent changes, conflicts)
+- `GET /api/permissions/boards/:boardId` - Active grants on one owned board
+- `POST /api/permissions/share` - Grant access: `{ boardId, granteeUsername, accessLevel }` (`readonly`/`edit`)
+- `PUT /api/permissions/share/:boardId/:granteeId` - Change access level
+- `DELETE /api/permissions/share/:boardId/:granteeId` - Revoke access
+- `GET /api/permissions/audit` - Audit report payload (board ownership, read-only scope, recent permission changes)
+- `GET /api/permissions/audit/export` - Download the report file (attachment)
+
+The permission view, board list, and audit report all read from one canonical
+effective-permission query: only active (`revoked_at IS NULL`) grants count,
+and exactly one active grant may exist per (board, account). Revoked rows stay
+in history (and in "recent changes") but never appear as current access, so the
+list and report cannot disagree.
+
+The export is guarded and atomic:
+- An account with no boards/grants gets a valid **empty** report.
+- Conflicting records (duplicate active grants) make the export return `409`
+  **before** any file is written; the previously downloaded good report is
+  kept untouched.
+- The file is built completely, written to a temp file, then renamed into
+  place, so a download interruption never leaves a partial/contradictory file.
+- The filename is stable per account (`cross-account-audit-<id>-<user>.json`);
+  repeat exports overwrite the same result instead of creating copies.
+
+Private boards (never shared) behave exactly as before: only the owner can
+open or modify them, and outsiders receive `404`.
 
 ### Columns
 - `GET /api/boards/:boardId/columns` - Get columns for a board

@@ -4,9 +4,11 @@
       <div class="board-title">
         <el-button text :icon="ArrowLeft" @click="$router.push('/')">Back</el-button>
         <h2 v-if="boardStore.currentBoard">{{ boardStore.currentBoard.name }}</h2>
+        <el-tag v-if="isReadonly" type="info" effect="plain">Read-only</el-tag>
+        <el-tag v-else-if="isEditShare" type="warning" effect="plain">Can edit (shared)</el-tag>
       </div>
       <div class="board-actions">
-        <el-button type="primary" :icon="Plus" @click="showAddColumn = true">
+        <el-button v-if="!isReadonly" type="primary" :icon="Plus" @click="showAddColumn = true">
           Add Column
         </el-button>
       </div>
@@ -24,6 +26,7 @@
         class="columns-wrapper"
         ghost-class="column-ghost"
         animation="200"
+        :disabled="isReadonly"
         @end="onColumnDragEnd"
       >
         <template #item="{ element: column }">
@@ -31,6 +34,7 @@
             :column="column"
             :cards="boardStore.cards[column.id] || []"
             :all-columns="boardStore.columns"
+            :readonly="isReadonly"
             @add-card="handleAddCard"
             @edit-card="openCardDetail"
             @delete-card="confirmDeleteCard"
@@ -67,6 +71,7 @@
       v-model:visible="showCardDetail"
       :card="selectedCard"
       :all-columns="boardStore.columns"
+      :readonly="isReadonly"
       @updated="onCardUpdated"
       @move="handleMoveCard"
     />
@@ -74,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowLeft, Loading } from '@element-plus/icons-vue'
@@ -95,6 +100,11 @@ const showAddCard = ref(false)
 const addingToColumnId = ref(null)
 const showCardDetail = ref(false)
 const selectedCard = ref(null)
+
+// Access level comes from the canonical board list (same data as the audit
+// report). Owners keep every operation; read-only shares only view.
+const isReadonly = computed(() => boardStore.currentBoard?.access_level === 'readonly')
+const isEditShare = computed(() => boardStore.currentBoard?.access_level === 'edit')
 
 onMounted(async () => {
   const boardId = parseInt(route.params.id)

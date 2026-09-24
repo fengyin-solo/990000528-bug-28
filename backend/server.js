@@ -6,9 +6,10 @@ const authRoutes = require('./routes/auth');
 const boardRoutes = require('./routes/boards');
 const columnRoutes = require('./routes/columns');
 const cardRoutes = require('./routes/cards');
+const permissionRoutes = require('./routes/permissions');
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 
 // Middleware
 app.use(cors());
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/boards', boardRoutes);
 app.use('/api', columnRoutes);
 app.use('/api', cardRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {

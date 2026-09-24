@@ -3,9 +3,14 @@
     <div class="home-container">
       <div class="home-header">
         <h1>My Boards</h1>
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">
-          New Board
-        </el-button>
+        <div style="display: flex; gap: 10px;">
+          <el-button :icon="Lock" @click="router.push('/permissions')">
+            Access &amp; Audit
+          </el-button>
+          <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">
+            New Board
+          </el-button>
+        </div>
       </div>
 
       <div v-if="boardStore.loading" class="loading-state">
@@ -52,7 +57,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading } from '@element-plus/icons-vue'
+import { Plus, Loading, Lock } from '@element-plus/icons-vue'
 import { useBoardStore } from '../stores/board.js'
 import BoardCard from '../components/BoardCard.vue'
 

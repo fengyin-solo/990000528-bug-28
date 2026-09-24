@@ -2,8 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'taskboard.db');
+const DATA_DIR = process.env.DB_DIR || path.join(__dirname, '..', 'data');
+const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'taskboard.db');
 
 function getDb() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -56,6 +56,42 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE
+    );
+
+    -- Cross-account board grants. Exactly one active (non-revoked) row per
+    -- (board, grantee); revoked rows stay only as historical evidence.
+    CREATE TABLE IF NOT EXISTS board_shares (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board_id INTEGER NOT NULL,
+      grantee_id INTEGER NOT NULL,
+      access_level TEXT NOT NULL CHECK(access_level IN ('readonly','edit')),
+      granted_by INTEGER NOT NULL,
+      granted_at TEXT DEFAULT (datetime('now')),
+      revoked_at TEXT,
+      revoked_by INTEGER,
+      FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+      FOREIGN KEY (grantee_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (granted_by) REFERENCES users(id),
+      FOREIGN KEY (revoked_by) REFERENCES users(id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_board_shares_active
+      ON board_shares(board_id, grantee_id) WHERE revoked_at IS NULL;
+
+    -- Append-only audit trail of every cross-account permission change.
+    -- This log is the single source the audit report's "recent changes" and
+    -- the effective-permission view are both derived from.
+    CREATE TABLE IF NOT EXISTS permission_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board_id INTEGER NOT NULL,
+      grantee_id INTEGER NOT NULL,
+      actor_id INTEGER NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('grant','update','revoke')),
+      access_level TEXT CHECK(access_level IN ('readonly','edit')),
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+      FOREIGN KEY (grantee_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (actor_id) REFERENCES users(id)
     );
   `);
 

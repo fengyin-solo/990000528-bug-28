@@ -4,6 +4,7 @@
       <div class="board-card-header">
         <h3>{{ board.name }}</h3>
         <el-button
+          v-if="board.access_level === 'owner'"
           type="danger"
           :icon="Delete"
           circle
@@ -14,6 +15,9 @@
     </template>
     <p class="board-desc">{{ board.description || 'No description' }}</p>
     <div class="board-meta">
+      <el-tag size="small" :type="accessTagType" effect="plain">
+        {{ accessLabel }}
+      </el-tag>
       <el-tag size="small" type="info">
         <el-icon><Grid /></el-icon>
         {{ board.column_count || 0 }} columns
@@ -25,6 +29,7 @@
     </div>
     <div class="board-date">
       <el-text type="info" size="small">
+        <template v-if="board.access_level !== 'owner'">Shared by {{ board.owner_username }} · </template>
         Created {{ formatDate(board.created_at) }}
       </el-text>
     </div>
@@ -32,13 +37,27 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Delete, Grid, Document } from '@element-plus/icons-vue'
 
-defineProps({
+const props = defineProps({
   board: { type: Object, required: true }
 })
 
 defineEmits(['open', 'delete'])
+
+const accessLabel = computed(() => {
+  if (props.board.access_level === 'owner') return 'Owned by me'
+  if (props.board.access_level === 'edit') return 'Shared · can edit'
+  if (props.board.access_level === 'readonly') return 'Shared · read-only'
+  return 'Owned by me'
+})
+
+const accessTagType = computed(() => {
+  if (props.board.access_level === 'owner') return 'success'
+  if (props.board.access_level === 'edit') return 'warning'
+  return 'info'
+})
 
 function formatDate(dateStr) {
   if (!dateStr) return ''

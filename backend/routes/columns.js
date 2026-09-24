@@ -1,31 +1,26 @@
 const express = require('express');
 const { getDb } = require('../db/init');
 const { authMiddleware } = require('../middleware/auth');
+const permissions = require('../services/permissions');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-// Helper: verify that the board belongs to the user
-function verifyBoardOwnership(db, boardId, userId) {
-  return db.prepare('SELECT * FROM boards WHERE id = ? AND user_id = ?').get(boardId, userId);
-}
-
 // GET /api/boards/:boardId/columns - Get columns for a board (with card counts)
 router.get('/boards/:boardId/columns', (req, res) => {
   const db = getDb();
   try {
-    const board = verifyBoardOwnership(db, req.params.boardId, req.user.id);
-    if (!board) {
+    if (!permissions.canView(db, req.params.boardId, req.user.id)) {
       db.close();
       return res.status(404).json({ error: 'Board not found' });
     }
 
     const columns = db.prepare(`
-      SELECT col.*, 
+      SELECT col.*,
         (SELECT COUNT(*) FROM cards WHERE column_id = col.id) AS card_count
-      FROM columns col 
-      WHERE col.board_id = ? 
+      FROM columns col
+      WHERE col.board_id = ?
       ORDER BY col.position ASC
     `).all(req.params.boardId);
 
@@ -37,7 +32,7 @@ router.get('/boards/:boardId/columns', (req, res) => {
   }
 });
 
-// POST /api/boards/:boardId/columns - Add column
+// POST /api/boards/:boardId/columns - Add column (owner or edit access)
 router.post('/boards/:boardId/columns', (req, res) => {
   const { name } = req.body;
   if (!name || !name.trim()) {
@@ -46,10 +41,9 @@ router.post('/boards/:boardId/columns', (req, res) => {
 
   const db = getDb();
   try {
-    const board = verifyBoardOwnership(db, req.params.boardId, req.user.id);
-    if (!board) {
+    if (!permissions.canEdit(db, req.params.boardId, req.user.id)) {
       db.close();
-      return res.status(404).json({ error: 'Board not found' });
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
     }
 
     // Get the max position
@@ -78,14 +72,18 @@ router.put('/columns/:id', (req, res) => {
 
   try {
     const column = db.prepare(`
-      SELECT col.*, b.user_id FROM columns col 
-      JOIN boards b ON col.board_id = b.id 
+      SELECT col.*, b.user_id FROM columns col
+      JOIN boards b ON col.board_id = b.id
       WHERE col.id = ?
     `).get(req.params.id);
 
-    if (!column || column.user_id !== req.user.id) {
+    if (!column) {
       db.close();
       return res.status(404).json({ error: 'Column not found' });
+    }
+    if (!permissions.canEdit(db, column.board_id, req.user.id)) {
+      db.close();
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
     }
 
     const updates = [];
@@ -137,14 +135,18 @@ router.delete('/columns/:id', (req, res) => {
   const db = getDb();
   try {
     const column = db.prepare(`
-      SELECT col.*, b.user_id FROM columns col 
-      JOIN boards b ON col.board_id = b.id 
+      SELECT col.*, b.user_id FROM columns col
+      JOIN boards b ON col.board_id = b.id
       WHERE col.id = ?
     `).get(req.params.id);
 
-    if (!column || column.user_id !== req.user.id) {
+    if (!column) {
       db.close();
       return res.status(404).json({ error: 'Column not found' });
+    }
+    if (!permissions.canEdit(db, column.board_id, req.user.id)) {
+      db.close();
+      return res.status(403).json({ error: 'Read-only access cannot modify this board' });
     }
 
     // Delete all cards in the column first (cascade should handle it, but be explicit)

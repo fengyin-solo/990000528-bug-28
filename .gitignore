@@ -25,6 +25,12 @@ docker-data/
 # Env
 .env
 
+# Local database and generated audit report exports
+backend/data/*.db
+backend/data/*.db-*
+backend/data/reports/
+*.audit-tmp
+
 docs/
 # Dependencies
 node_modules/

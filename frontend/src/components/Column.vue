@@ -1,7 +1,7 @@
 <template>
   <div class="column">
     <div class="column-header">
-      <div v-if="!isEditing" class="column-title" @dblclick="startEditing">
+      <div v-if="!isEditing" class="column-title" :class="{ 'is-readonly': readonly }" @dblclick="startEditing">
         <h3>{{ column.name }}</h3>
         <el-tag size="small" round>{{ cards.length }}</el-tag>
       </div>
@@ -14,7 +14,7 @@
           @blur="saveRename"
         />
       </div>
-      <el-dropdown trigger="click" @command="handleCommand">
+      <el-dropdown v-if="!readonly" trigger="click" @command="handleCommand">
         <el-button text size="small" :icon="MoreFilled" />
         <template #dropdown>
           <el-dropdown-menu>
@@ -32,12 +32,14 @@
         group="cards"
         ghost-class="card-ghost"
         animation="200"
+        :disabled="readonly"
         @end="onCardDragEnd"
       >
         <template #item="{ element: card }">
           <TaskCard
             :card="card"
             :all-columns="allColumns"
+            :readonly="readonly"
             @edit="$emit('edit-card', card)"
             @delete="$emit('delete-card', card)"
             @move="(targetColId) => $emit('move-card', card.id, targetColId, 0)"
@@ -46,7 +48,7 @@
       </draggable>
     </div>
 
-    <div class="column-footer">
+    <div v-if="!readonly" class="column-footer">
       <el-button text type="primary" :icon="Plus" @click="$emit('add-card', column.id)">
         Add Card
       </el-button>
@@ -64,7 +66,8 @@ import { cardApi } from '../api/index.js'
 const props = defineProps({
   column: { type: Object, required: true },
   cards: { type: Array, default: () => [] },
-  allColumns: { type: Array, default: () => [] }
+  allColumns: { type: Array, default: () => [] },
+  readonly: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['add-card', 'edit-card', 'delete-card', 'move-card', 'rename-column', 'delete-column'])
@@ -74,6 +77,7 @@ const editName = ref('')
 const editInputRef = ref(null)
 
 function startEditing() {
+  if (props.readonly) return
   editName.value = props.column.name
   isEditing.value = true
   nextTick(() => {
@@ -144,6 +148,10 @@ async function onCardDragEnd(evt) {
   cursor: pointer;
   flex: 1;
   min-width: 0;
+}
+
+.column-title.is-readonly {
+  cursor: default;
 }
 
 .column-title h3 {

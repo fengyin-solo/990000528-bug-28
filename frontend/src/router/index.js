@@ -20,6 +20,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/permissions',
+    name: 'Permissions',
+    component: () => import('../views/Permissions.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/board/:id',
     name: 'Board',
     component: () => import('../views/Board.vue'),

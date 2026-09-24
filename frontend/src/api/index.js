@@ -57,4 +57,46 @@ export const cardApi = {
   move: (id, columnId, position) => api.put(`/cards/${id}/move`, { columnId, position })
 }
 
+// Cross-account permissions and audit report
+export const permissionApi = {
+  me: () => api.get('/permissions/me'),
+  listBoardGrants: (boardId) => api.get(`/permissions/boards/${boardId}`),
+  share: (boardId, granteeUsername, accessLevel) =>
+    api.post('/permissions/share', { boardId, granteeUsername, accessLevel }),
+  updateShare: (boardId, granteeId, accessLevel) =>
+    api.put(`/permissions/share/${boardId}/${granteeId}`, { accessLevel }),
+  revokeShare: (boardId, granteeId) =>
+    api.delete(`/permissions/share/${boardId}/${granteeId}`),
+  auditPreview: () => api.get('/permissions/audit'),
+  // Returns { blob, filename, sha256 } only after the whole file has been
+  // received successfully. A 409/500 refusal arrives as a JSON blob; it is
+  // parsed and rejected so callers never save a contradictory file.
+  auditExport: async () => {
+    try {
+      const res = await api.get('/permissions/audit/export', { responseType: 'blob' })
+      return {
+        blob: res.data,
+        filename: filenameFromDisposition(res.headers['content-disposition']),
+        sha256: res.headers['x-report-sha256']
+      }
+    } catch (err) {
+      if (err.response && err.response.data instanceof Blob) {
+        let payload = {}
+        try { payload = JSON.parse(await err.response.data.text()) } catch { /* keep defaults */ }
+        throw Object.assign(new Error(payload.error || 'Export failed'), {
+          status: err.response.status,
+          conflicts: payload.conflicts || []
+        })
+      }
+      throw err
+    }
+  }
+}
+
+function filenameFromDisposition(disposition) {
+  if (!disposition) return 'cross-account-audit.json'
+  const match = /filename="?([^"]+)"?/.exec(disposition)
+  return match ? match[1] : 'cross-account-audit.json'
+}
+
 export default api

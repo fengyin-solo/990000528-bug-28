@@ -6,6 +6,10 @@
         <span>Task Board</span>
       </div>
       <div class="navbar-right">
+        <el-button text style="color: #fff; margin-right: 12px;" @click="$router.push('/permissions')">
+          <el-icon><Lock /></el-icon>
+          Access &amp; Audit
+        </el-button>
         <el-text style="color: #fff; margin-right: 16px;">
           <el-icon><User /></el-icon>
           {{ authStore.user?.username }}
@@ -22,7 +26,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
-import { List, User, SwitchButton } from '@element-plus/icons-vue'
+import { List, User, SwitchButton, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

@@ -1,24 +1,20 @@
 const express = require('express');
 const { getDb } = require('../db/init');
 const { authMiddleware } = require('../middleware/auth');
+const permissions = require('../services/permissions');
 
 const router = express.Router();
 
 // All board routes require authentication
 router.use(authMiddleware);
 
-// GET /api/boards - List user's boards
+// GET /api/boards - List boards the user can access (owned + shared).
+// Uses the same canonical query as the audit report, so the board list and a
+// downloaded report can never disagree.
 router.get('/', (req, res) => {
   const db = getDb();
   try {
-    const boards = db.prepare(`
-      SELECT b.*, 
-        (SELECT COUNT(*) FROM columns WHERE board_id = b.id) AS column_count,
-        (SELECT COUNT(*) FROM cards c JOIN columns col ON c.column_id = col.id WHERE col.board_id = b.id) AS card_count
-      FROM boards b 
-      WHERE b.user_id = ? 
-      ORDER BY b.created_at DESC
-    `).all(req.user.id);
+    const boards = permissions.listAccessibleBoards(db, req.user.id);
     db.close();
     res.json(boards);
   } catch (err) {
