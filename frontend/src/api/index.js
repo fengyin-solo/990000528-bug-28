@@ -57,4 +57,17 @@ export const cardApi = {
   move: (id, columnId, position) => api.put(`/cards/${id}/move`, { columnId, position })
 }
 
+// Board sharing (read-only, cross-account)
+export const shareApi = {
+  list: (boardId) => api.get(`/boards/${boardId}/shares`),
+  grant: (boardId, username) => api.post(`/boards/${boardId}/shares`, { username }),
+  revoke: (boardId, userId) => api.delete(`/boards/${boardId}/shares/${userId}`)
+}
+
+// Data-ownership audit
+export const auditApi = {
+  permissions: () => api.get('/audit/permissions'),
+  downloadReport: () => api.get('/audit/report', { responseType: 'blob' })
+}
+
 export default api

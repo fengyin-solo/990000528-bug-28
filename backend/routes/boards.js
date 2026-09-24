@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db/init');
 const { authMiddleware } = require('../middleware/auth');
+const { listOwnedBoards } = require('../services/audit');
 
 const router = express.Router();
 
@@ -11,14 +12,9 @@ router.use(authMiddleware);
 router.get('/', (req, res) => {
   const db = getDb();
   try {
-    const boards = db.prepare(`
-      SELECT b.*, 
-        (SELECT COUNT(*) FROM columns WHERE board_id = b.id) AS column_count,
-        (SELECT COUNT(*) FROM cards c JOIN columns col ON c.column_id = col.id WHERE col.board_id = b.id) AS card_count
-      FROM boards b 
-      WHERE b.user_id = ? 
-      ORDER BY b.created_at DESC
-    `).all(req.user.id);
+    // Shared ownership query: the audit report's ownership section is
+    // derived from this exact list, so the two can never disagree.
+    const boards = listOwnedBoards(db, req.user.id);
     db.close();
     res.json(boards);
   } catch (err) {

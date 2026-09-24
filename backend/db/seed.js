@@ -5,6 +5,8 @@ function seed() {
   const db = initDb();
 
   // Clear existing data
+  db.exec('DELETE FROM permission_events');
+  db.exec('DELETE FROM board_shares');
   db.exec('DELETE FROM cards');
   db.exec('DELETE FROM columns');
   db.exec('DELETE FROM boards');
@@ -16,6 +18,13 @@ function seed() {
   const userResult = insertUser.run('demo', hashedPassword);
   const userId = userResult.lastInsertRowid;
   console.log('Created demo user (id:', userId, ')');
+
+  // Additional accounts for cross-account sharing/audit demo
+  const teammateResult = insertUser.run('teammate', hashedPassword);
+  const teammateId = teammateResult.lastInsertRowid;
+  const guestResult = insertUser.run('guest', hashedPassword);
+  const guestId = guestResult.lastInsertRowid;
+  console.log('Created users: teammate (id:', teammateId, '), guest (id:', guestId, ')');
 
   // Create sample board
   const insertBoard = db.prepare('INSERT INTO boards (user_id, name, description) VALUES (?, ?, ?)');
@@ -51,6 +60,25 @@ function seed() {
 
   cards.forEach(c => insertCard.run(c.colId, c.title, c.desc, c.priority, c.due, c.pos));
   console.log('Created', cards.length, 'sample cards');
+
+  // Cross-account sharing demo:
+  //  - teammate has ACTIVE read-only access to "My Project"
+  //  - guest was granted access and later revoked (must not appear as active)
+  const insertShare = db.prepare(
+    'INSERT INTO board_shares (board_id, user_id, granted_by, revoked_at) VALUES (?, ?, ?, ?)'
+  );
+  const insertEvent = db.prepare(
+    'INSERT INTO permission_events (board_id, actor_id, target_user_id, action) VALUES (?, ?, ?, ?)'
+  );
+
+  insertShare.run(boardId, teammateId, userId, null);
+  insertEvent.run(boardId, userId, teammateId, 'granted');
+
+  const revokedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  insertShare.run(boardId, guestId, userId, revokedAt);
+  insertEvent.run(boardId, userId, guestId, 'granted');
+  insertEvent.run(boardId, userId, guestId, 'revoked');
+  console.log('Created shares: teammate (active, read-only), guest (revoked)');
 
   db.close();
   console.log('Seed complete!');

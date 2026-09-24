@@ -6,6 +6,7 @@
         <h2 v-if="boardStore.currentBoard">{{ boardStore.currentBoard.name }}</h2>
       </div>
       <div class="board-actions">
+        <el-button :icon="Share" @click="openShareDialog">Share</el-button>
         <el-button type="primary" :icon="Plus" @click="showAddColumn = true">
           Add Column
         </el-button>
@@ -55,6 +56,29 @@
       </template>
     </el-dialog>
 
+    <!-- Share Dialog: read-only permission view for this board -->
+    <el-dialog v-model="showShareDialog" title="Share Board (read-only)" width="480px" :close-on-click-modal="false">
+      <div class="share-grant">
+        <el-input v-model="shareUsername" placeholder="Username to share with" @keyup.enter="handleGrantShare" />
+        <el-button type="primary" :loading="grantingShare" :disabled="!shareUsername.trim()" @click="handleGrantShare">
+          Grant read access
+        </el-button>
+      </div>
+      <el-table :data="shares" v-loading="loadingShares" empty-text="No one else has access">
+        <el-table-column prop="username" label="Account" />
+        <el-table-column label="Permission" width="120">
+          <template #default>
+            <el-tag type="info">Read-only</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="" width="100">
+          <template #default="{ row }">
+            <el-button type="danger" text size="small" @click="handleRevokeShare(row)">Revoke</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
     <!-- Add Card Dialog -->
     <AddCardForm
       v-model:visible="showAddCard"
@@ -77,10 +101,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowLeft, Loading } from '@element-plus/icons-vue'
+import { Plus, ArrowLeft, Loading, Share } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { useBoardStore } from '../stores/board.js'
-import { columnApi } from '../api/index.js'
+import { columnApi, shareApi } from '../api/index.js'
 import Column from '../components/Column.vue'
 import AddCardForm from '../components/AddCardForm.vue'
 import CardDetail from '../components/CardDetail.vue'
@@ -95,6 +119,11 @@ const showAddCard = ref(false)
 const addingToColumnId = ref(null)
 const showCardDetail = ref(false)
 const selectedCard = ref(null)
+const showShareDialog = ref(false)
+const shares = ref([])
+const loadingShares = ref(false)
+const grantingShare = ref(false)
+const shareUsername = ref('')
 
 onMounted(async () => {
   const boardId = parseInt(route.params.id)
@@ -132,6 +161,45 @@ async function handleAddColumn() {
     ElMessage.success('Column added')
   } catch (err) {
     ElMessage.error('Failed to add column')
+  }
+}
+
+async function openShareDialog() {
+  showShareDialog.value = true
+  loadingShares.value = true
+  try {
+    const res = await shareApi.list(boardStore.currentBoard.id)
+    shares.value = res.data
+  } catch (err) {
+    ElMessage.error('Failed to load shares')
+  } finally {
+    loadingShares.value = false
+  }
+}
+
+async function handleGrantShare() {
+  const username = shareUsername.value.trim()
+  if (!username) return
+  grantingShare.value = true
+  try {
+    const res = await shareApi.grant(boardStore.currentBoard.id, username)
+    shares.value = res.data
+    shareUsername.value = ''
+    ElMessage.success(`Read-only access granted to ${username}`)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || 'Failed to share board')
+  } finally {
+    grantingShare.value = false
+  }
+}
+
+async function handleRevokeShare(share) {
+  try {
+    await shareApi.revoke(boardStore.currentBoard.id, share.user_id)
+    shares.value = shares.value.filter(s => s.user_id !== share.user_id)
+    ElMessage.success(`Access revoked for ${share.username}`)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || 'Failed to revoke access')
   }
 }
 
@@ -246,6 +314,17 @@ async function onColumnDragEnd(evt) {
 .board-title h2 {
   font-size: 22px;
   color: #303133;
+}
+
+.board-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.share-grant {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .columns-container {

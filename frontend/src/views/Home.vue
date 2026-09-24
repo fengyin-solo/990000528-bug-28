@@ -3,9 +3,14 @@
     <div class="home-container">
       <div class="home-header">
         <h1>My Boards</h1>
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">
-          New Board
-        </el-button>
+        <div class="home-actions">
+          <el-button :icon="Download" :loading="downloadingReport" @click="handleDownloadReport">
+            Audit Report
+          </el-button>
+          <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">
+            New Board
+          </el-button>
+        </div>
       </div>
 
       <div v-if="boardStore.loading" class="loading-state">
@@ -52,8 +57,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading } from '@element-plus/icons-vue'
+import { Plus, Loading, Download } from '@element-plus/icons-vue'
 import { useBoardStore } from '../stores/board.js'
+import { auditApi } from '../api/index.js'
 import BoardCard from '../components/BoardCard.vue'
 
 const router = useRouter()
@@ -61,6 +67,7 @@ const boardStore = useBoardStore()
 
 const showCreateDialog = ref(false)
 const creating = ref(false)
+const downloadingReport = ref(false)
 const createFormRef = ref(null)
 
 const createForm = ref({ name: '', description: '' })
@@ -110,6 +117,27 @@ async function confirmDeleteBoard(board) {
     }
   }
 }
+
+async function handleDownloadReport() {
+  downloadingReport.value = true
+  try {
+    const res = await auditApi.downloadReport()
+    const disposition = res.headers['content-disposition'] || ''
+    const match = disposition.match(/filename="?([^";]+)"?/)
+    const filename = match ? match[1] : 'audit-report.csv'
+    const url = URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('Audit report downloaded')
+  } catch (err) {
+    ElMessage.error('Failed to download audit report')
+  } finally {
+    downloadingReport.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -127,6 +155,11 @@ async function confirmDeleteBoard(board) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
+}
+
+.home-actions {
+  display: flex;
+  gap: 12px;
 }
 
 .home-header h1 {

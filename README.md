@@ -80,6 +80,20 @@ The seed script creates a demo user with a sample board "My Project" containing 
 - `POST /api/boards` - Create board
 - `DELETE /api/boards/:id` - Delete board
 
+### Sharing & Audit (data ownership)
+- `GET /api/boards/:boardId/shares` - Permission view: active read-only shares for a board (owner only)
+- `POST /api/boards/:boardId/shares` - Grant read-only access to another account (owner only)
+- `DELETE /api/boards/:boardId/shares/:userId` - Revoke read-only access (owner only)
+- `GET /api/audit/permissions` - Cross-account permission view (JSON): ownership, read-only scope, recent changes
+- `GET /api/audit/report` - Download the cross-account audit report (CSV)
+
+The audit report lists board ownership, the read-only sharing scope, and recent
+permission changes (grants/revokes). It is generated from the same queries as
+the board list and permission view, written atomically to a deterministic
+filename (`backend/data/reports/audit-report-<userId>.csv`), so repeated
+exports overwrite the same result and an interrupted download never leaves a
+partial file behind.
+
 ### Columns
 - `GET /api/boards/:boardId/columns` - Get columns for a board
 - `POST /api/boards/:boardId/columns` - Add column
